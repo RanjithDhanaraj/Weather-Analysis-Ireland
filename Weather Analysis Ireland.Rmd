@@ -1,0 +1,205 @@
+---
+title: "Assignment 2"
+author: "Ranjith_Dhanaraj_19200041"
+date: "11/13/2019"
+output: pdf_document
+---
+
+Loading the dataset while skipping the first 19 lines.
+
+```{r}
+DublinAirport = read.csv('mly532.csv',skip=19)
+str(DublinAirport)
+```
+
+Transform the column 'months' to lables with column names.
+
+```{r}
+DublinAirport$month <- factor(DublinAirport$month, levels = c(1:12), labels = c(month.name))
+head(DublinAirport)
+```
+
+Month with the highest and the lowest percipiation amount.
+
+```{r}
+aggregate_rain = aggregate(DublinAirport$rain, by= list(DublinAirport$month), FUN = "mean")
+rownames(aggregate_rain)<-aggregate_rain$Group.1
+aggregate_rain$Group.1 <- 0
+highest_percipitation_month <- row.names(aggregate_rain[which.max(aggregate_rain$x),])
+sprintf("The month highest precipitation is %s", highest_percipitation_month)
+```
+
+```{r}
+lowest_percipitation_month <- row.names(aggregate_rain[which.min(aggregate_rain$x),])
+sprintf("The month lowest precipitation is %s", lowest_percipitation_month)
+```
+
+Creating a new column 'season' based on the month.
+
+Importing data manipulation library
+```{r}
+library(dplyr)
+```
+
+Changing the 'DublinAirport' dataframe by adding season as an additional column
+
+```{r}
+DublinAirport <- mutate(DublinAirport,
+                        Season = case_when(
+                          month %in% c("December","January","February") ~ "Winter",
+                          month %in% c("March","April","May") ~ "Spring",
+                          month %in% c("June","July","August") ~ "Summer",
+                          month %in% c("September","October","November") ~ "Autumn",
+                          TRUE ~ "NA"))
+
+DublinAirport$Season<-factor(DublinAirport$Season,
+                             levels=c("Winter","Spring","Summer","Autumn"))
+
+head(DublinAirport)
+```
+
+## Custom S3 Class creation
+Assigning the classes 'WeatherData' and 'data.frame' to the dataframe 'DublinAirport'.
+
+```{r}
+class(DublinAirport) <- c('WeatherData', class(DublinAirport))
+class(DublinAirport)
+```
+
+Creating a S3 summary method for an object in WeatherData class.
+
+```{r}
+summary.WeatherData <- function(object){
+  object %>%
+  group_by(Season) %>%
+  select(rain, maxtp, mintp, maxgt) %>%
+  summarise_all(funs(mean, max, sd), na.rm = TRUE)
+}
+summary.WeatherData(DublinAirport)
+```
+A custom summary function for objects belonging to WeatherData class has been created. 
+We can observe that the highest mean amount of rainfall occurs in Autumn. 
+When we take temperature into consideration, the hottest season tends to be the summer even though it has a good amount of rainfall, whereas, Spring has the lowest rainfall yet the mean temperature is less than I expected it to be.
+Winter has the highest gust speed on an average while Autumn comes in second.
+Summer and Autmn seem to have the highest range of temperature swings. 
+Highest amount of rainfall has occured during the winter season even though the mean rainfall is less when compared to Autumn.
+Winter and Autumn are the seasons whcih rank first and second respectively when we take the highest gust speed. This corresponds well with the fact that they are the windiest on an average as well.
+Mean temperatures are of the same ranking as that of the Max and min temperature and there is nothing so special about it.
+Standard deviation of rain, max temp, min temp, max gust speed and min gust speed, all correlate to their mean, max and min counterparts.
+
+Plotting graphs for 'WeatherData' Class.
+
+Importing the library that helps us arrange graphs
+```{r}
+library(gridExtra)
+```
+
+Now, we will import the library that will help plot the graphs.
+
+```{r}
+library(ggplot2)
+```
+
+Plotting begins in the following code - 
+
+```{r}
+plot.WeatherData <- function(df, start_year = 2015, end_year = 2018, 
+                             plot1 = TRUE, plot2 = TRUE, plot3 = TRUE ) {
+  df_sub <- subset(df, df$year >= start_year & df$year <= end_year)
+  data <- data.frame(Timeline = with(df_sub,
+
+  sprintf("%d-%02d", df_sub$year, df_sub$month)),
+
+  mintp = df_sub$mintp,
+  maxtp = df_sub$maxtp,
+  rain = df_sub$rain,
+  maxgt = df_sub$maxgt)
+  q <- ggplot(data, aes(x= Timeline)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        legend.position="right") + labs(y = "Values")
+  if(plot1 == TRUE & plot2 == FALSE & plot3 == FALSE ){
+    q <- q +
+    geom_line(aes(y = mintp, group = 1, color = "Mintp")) +
+    geom_line(aes(y = maxtp, group = 1, color = "Maxtp")) +
+    labs( title = 'Air Temperature')
+    q
+  }
+  else if(plot1 == FALSE & plot2 == TRUE & plot3 == FALSE ){
+    q <- q +
+    geom_line(aes(y = rain, group = 1, color = "Rain")) +
+    labs( title = 'Rain')
+    q
+  }
+  else if(plot1 == FALSE & plot2 == FALSE & plot3 == TRUE ){
+    q <- q +
+    geom_line(aes(y = maxgt, group = 1, color = "Gust")) +
+    labs( title = 'Gust')
+    q
+  }
+  else if(plot1 == TRUE & plot2 == TRUE & plot3 == FALSE ){
+    q1 <- q +
+    geom_line(aes(y = mintp, group = 1, color = "Mintp")) +
+    geom_line(aes(y = maxtp, group = 1, color = "Maxtp")) +
+    labs( title = 'Air Temperature')
+    q2 <- q +
+    geom_line(aes(y = maxgt, group = 1, color = "Rain")) +
+    labs( title = 'Rain')
+    grid.arrange(q1,q2)
+  }
+  else if(plot1 == TRUE & plot2 == FALSE & plot3 == TRUE ){
+    q1 <- q +
+    geom_line(aes(y = mintp, group = 1, color = "Mintp")) +
+    geom_line(aes(y = maxtp, group = 1, color = "Maxtp")) +
+    labs( title = 'Air Temperature')
+    q2 <- q +
+    geom_line(aes(y = maxgt, group = 1, color = "Gust")) +
+    labs( title = 'Gust')
+    grid.arrange(q1,q2)
+  }
+  else if(plot1 == FALSE & plot2 == TRUE & plot3 == TRUE ){
+    q1 <- q +
+    geom_line(aes(y = rain, group = 1, color = "rain")) +
+    labs( title = 'Rain')
+    q2 <- q +
+    geom_line(aes(y = maxgt, group = 1, color = "Gust")) +
+    labs( title = 'Gust')
+    grid.arrange(q1,q2)
+  }
+  else{
+    q1 <- q +
+    geom_line(aes(y = mintp, group = 1, color = "Mintp")) +
+    geom_line(aes(y = maxtp, group = 1, color = "Maxtp")) +
+    labs( title = 'Air Temperature')
+    q2 <- q +
+    geom_line(aes(y = rain, group = 1, color = "Rain")) +
+    labs( title = 'Rain')
+    q3 <- q +
+    geom_line(aes(y = maxgt, group = 1, color = "Gust")) +
+    labs( title = 'Gust')
+    grid.arrange(q1,q2,q3)
+  }
+}
+```
+
+We have now defined the plotting function for the 'WeatherData' class.
+
+### Plot 1
+
+```{r}
+plot.WeatherData(DublinAirport, 1977, 1978, TRUE, TRUE, FALSE)
+```
+
+
+### Plot 2
+
+```{r}
+plot.WeatherData(DublinAirport, 2000, 2001, FALSE, TRUE, TRUE)
+```
+
+
+### PLot 3
+
+```{r}
+plot.WeatherData(DublinAirport)
+```
+
